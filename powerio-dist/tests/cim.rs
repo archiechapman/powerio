@@ -1422,7 +1422,7 @@ fn a_tank_without_catalog_data_is_dropped() {
         "",
     );
     let net = parse_str(&feeder(&text), "cim-dist").unwrap();
-    assert!(net.transformers().is_empty());
+    assert_eq!(net.transformers().as_slice(), []);
     let dropped = findings(&net.warnings, "READ.CIM_DIST.RECORD_DROPPED");
     assert!(
         dropped
