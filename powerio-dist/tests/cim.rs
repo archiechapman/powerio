@@ -1377,9 +1377,9 @@ fn zero_test_losses_defer_to_end_resistance() {
         "{:#?}",
         net.warnings
     );
-    // Read as magnitudes, the zero loss pairs keep their full value and the
-    // 1 to 2 pair loses its resistive part: sqrt(2.04² − 1.8²) = 0.96.
-    assert!(close(ct.xsc_pct[0], 0.96));
+    // Read as reactances, every pair keeps the source value, the 1 to 2 pair
+    // included (a magnitude reading would give sqrt(2.04² − 1.8²) = 0.96).
+    assert!(close(ct.xsc_pct[0], 2.04));
     assert!(close(ct.xsc_pct[1], 2.04));
     assert!(close(ct.xsc_pct[2], 1.36));
 }

@@ -160,18 +160,20 @@ fn wrap_angle(angle: f64) -> f64 {
 /// How `ShortCircuitTest.leakageImpedance` is read. CIM defines it as the
 /// magnitude of the leakage impedance, and CIMHub's exporter (`GetDSS`)
 /// reads it that way, taking the reactance as `sqrt(|Z|² − R²)` with `R`
-/// from the test's load loss. Some GridAPPS-D feeders appear to state the
-/// reactance itself, so the reading is one switch the reader and the writer
-/// share.
+/// from the test's load loss. The GridAPPS-D feeders state the reactance
+/// itself: IEEE 13's `ct5` tests are exactly the deck's 2.04%, 2.04% and
+/// 1.36%, and its regulators' 0.01% is the deck's `XHL` with an equal
+/// `%LoadLoss`, which a magnitude reading would leave with almost no
+/// reactance. The reading is one switch the reader and the writer share.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LeakageReading {
-    Magnitude,
     #[cfg_attr(not(test), allow(dead_code))]
+    Magnitude,
     Reactance,
 }
 
 /// The [`LeakageReading`] the reader and the writer use.
-const LEAKAGE_READING: LeakageReading = LeakageReading::Magnitude;
+const LEAKAGE_READING: LeakageReading = LeakageReading::Reactance;
 
 /// One `ShortCircuitTest` as percentages on winding 1's power base.
 #[derive(Clone, Copy, Debug, PartialEq)]

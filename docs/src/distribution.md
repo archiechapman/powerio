@@ -142,8 +142,9 @@ a delta winding on `1, 2`, a three phase end is `1, 2, 3` in delta or
 `4, 2` (`bus.1.0` and `bus.0.2`), so they stack to the full secondary
 voltage. Catalog values follow CIMHub's conventions: `ratedU`, `ratedS`, and
 `r` in V, VA, and ohm; `ShortCircuitTest.leakageImpedance` in ohm referred to
-the energised end and read as the magnitude of the leakage impedance, so the
-reactance is `sqrt(z² − r²)` with `r` from the test's `loss`; test losses in
+the energised end and read as the pair reactance, which is what the GridAPPS-D
+feeders state (CIM defines it as the impedance magnitude, but read that way
+IEEE 13's center tap and regulator tests lose their reactance); test losses in
 kW; `NoLoadTest.excitingCurrent` in percent of rated current at the test's
 `basePower`; and every percentage rescaled to winding 1's rating. End
 resistances (`TransformerEndInfo.r`) take precedence over resistances split

@@ -167,8 +167,9 @@
   feeders use for single phase, center tap, and regulator banks: each
   `TransformerTank` becomes one transformer, with ratings, resistances, and
   short circuit reactances from its `TransformerTankInfo` catalog entry
-  (`TransformerEndInfo`, `ShortCircuitTest`), taps from tap changers on its
-  ends, and `NoLoadTest` data in the `%noloadloss` and `%imag` extras the
+  (`TransformerEndInfo`, `ShortCircuitTest`, whose `leakageImpedance` is read
+  as the pair reactance the GridAPPS-D feeders state), taps from tap
+  changers on its ends, and `NoLoadTest` data in the `%noloadloss` and `%imag` extras the
   dss, PMD, and BMOPF writers read. A `TransformerCoreAdmittance` on the
   `PowerTransformerEnd` form gives the same extras. The writer writes tanks
   read from CIM back as tanks, grouped under their `PowerTransformer` with
