@@ -1504,6 +1504,70 @@ fn core_admittance_becomes_no_load_percentages() {
     assert_eq!(again.extras["%imag"], wd.extras["%imag"]);
 }
 
+/// `tank_feeder.xml` with `wd`'s core admittance association stated as
+/// `forward` on the admittance and `inverse` on the end named, each
+/// optional.
+fn wd_core_stated(forward: bool, inverse: Option<&str>) -> String {
+    let mut text = std::fs::read_to_string(tank_fixture()).unwrap();
+    let stated = r##"    <cim:TransformerCoreAdmittance.TransformerEnd rdf:resource="#_wd_e1"/>
+"##;
+    assert!(text.contains(stated));
+    if !forward {
+        text = text.replace(stated, "");
+    }
+    if let Some(end) = inverse {
+        let open = format!("  <cim:PowerTransformerEnd rdf:ID=\"{end}\">\n");
+        assert!(text.contains(&open));
+        text = text.replace(
+            &open,
+            &format!("{open}    <cim:TransformerEnd.CoreAdmittance rdf:resource=\"#_wd_core\"/>\n"),
+        );
+    }
+    text
+}
+
+/// The core admittance association stated from the end, as
+/// `TransformerEnd.CoreAdmittance` (CIM-Graph's `write_xml` does this),
+/// reads the same as stated from the admittance, and neither side is
+/// reported as dropped or unread.
+#[test]
+fn core_admittance_reads_from_either_end_of_the_association() {
+    for (forward, inverse) in [(false, Some("_wd_e1")), (true, Some("_wd_e1"))] {
+        let net = parse_str(&wd_core_stated(forward, inverse), "cim-dist").unwrap();
+        let wd = transformer(&net, "wd");
+        assert!(close(wd.extras["%noloadloss"].as_f64().unwrap(), 0.1));
+        assert!(close(wd.extras["%imag"].as_f64().unwrap(), 0.4));
+        for code in [
+            "READ.CIM_DIST.RECORD_DROPPED",
+            "READ.CIM_DIST.VALUE_CONFLICT",
+            "READ.CIM_DIST.FIELD_UNMAPPED",
+        ] {
+            let found: Vec<_> = findings(&net.warnings, code)
+                .into_iter()
+                .filter(|w| w.contains("CoreAdmittance"))
+                .collect();
+            assert!(found.is_empty(), "forward {forward}: {found:#?}");
+        }
+    }
+}
+
+/// An end naming a core admittance that names another end as its own is a
+/// conflict: the admittance's reference is kept.
+#[test]
+fn core_admittance_on_two_ends_keeps_the_admittance_reference() {
+    let net = parse_str(&wd_core_stated(true, Some("_wd_e2")), "cim-dist").unwrap();
+    let wd = transformer(&net, "wd");
+    assert!(close(wd.extras["%noloadloss"].as_f64().unwrap(), 0.1));
+    assert!(close(wd.extras["%imag"].as_f64().unwrap(), 0.4));
+    let conflicts = findings(&net.warnings, "READ.CIM_DIST.VALUE_CONFLICT");
+    assert_eq!(conflicts.len(), 1, "{:#?}", net.warnings);
+    assert!(
+        conflicts[0].contains("wd_end1 (wd_e1) is kept"),
+        "{}",
+        conflicts[0]
+    );
+}
+
 /// Write then read keeps the tank grouping, the imported mRIDs, catalog
 /// sharing, and the form, and every value comes back bit for bit.
 #[test]

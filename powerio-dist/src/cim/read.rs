@@ -2069,10 +2069,7 @@ impl<'a> Mapper<'a> {
             "TransformerMeshImpedance",
             "TransformerMeshImpedance.FromTransformerEnd",
         );
-        let cores_of = self.children_of(
-            "TransformerCoreAdmittance",
-            "TransformerCoreAdmittance.TransformerEnd",
-        );
+        let cores_of = self.cores_of();
         let taps_of = self.children_of("RatioTapChanger", "RatioTapChanger.TransformerEnd");
         let index = self.tank_index(taps_of);
         let mut handled: HashSet<String> = HashSet::new();
@@ -2182,6 +2179,50 @@ impl<'a> Mapper<'a> {
             }
         }
         transformers
+    }
+
+    /// The core admittances of each `PowerTransformerEnd`. The association
+    /// may be stated from either end: `TransformerCoreAdmittance.TransformerEnd`
+    /// on the admittance, or `TransformerEnd.CoreAdmittance` on the end (as
+    /// CIM-Graph writes it). When both are stated and disagree, the
+    /// admittance's own reference is kept and the conflict reported.
+    fn cores_of(&mut self) -> HashMap<String, Vec<String>> {
+        let mut cores_of = self.children_of(
+            "TransformerCoreAdmittance",
+            "TransformerCoreAdmittance.TransformerEnd",
+        );
+        for end in self.store.ids_of("PowerTransformerEnd") {
+            let Some(core) =
+                self.target("PowerTransformerEnd", &end, "TransformerEnd.CoreAdmittance")
+            else {
+                continue;
+            };
+            if self.store.class_of(&core) != Some("TransformerCoreAdmittance") {
+                continue;
+            }
+            match self
+                .store
+                .refv(&core, "TransformerCoreAdmittance.TransformerEnd")
+            {
+                Some(stated) if stated == end => {}
+                Some(stated) => {
+                    let label = self.label(&core);
+                    let (named, other) = (self.label(&end), self.label(stated));
+                    self.note(
+                        &C::READ_CIM_DIST_VALUE_CONFLICT,
+                        "TransformerCoreAdmittance",
+                        &core,
+                        format!(
+                            "TransformerCoreAdmittance {label}: PowerTransformerEnd {named} names \
+                             it as its CoreAdmittance, but it names {other} as its TransformerEnd; \
+                             {other} is kept"
+                        ),
+                    );
+                }
+                None => cores_of.entry(end).or_default().push(core),
+            }
+        }
+        cores_of
     }
 
     /// The no-load percentages `(%noloadloss, %imag)` on winding 1's rating
