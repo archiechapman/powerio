@@ -40,21 +40,15 @@ import argparse
 import dataclasses
 import enum
 import importlib
-import json
-import os
 import re
-import shutil
-import subprocess
 import sys
 import tempfile
-import xml.etree.ElementTree as ET
 from collections import Counter
 from pathlib import Path
 
-RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-RDF_ID = f"{{{RDF}}}ID"
-RDF_ABOUT = f"{{{RDF}}}about"
-RDF_RESOURCE = f"{{{RDF}}}resource"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import common
+from common import Obj, fixtures, fresh_cim, read_objects
 
 VOCABULARY_PROFILE = "cim17v40"
 PROFILE = "rc4_2021"
@@ -72,21 +66,8 @@ REFERENCE_TYPE = "VOCAB.REFERENCE_TYPE"
 PROFILE_CLASS = "PROFILE.CLASS_OUTSIDE"
 PROFILE_PROPERTY = "PROFILE.PROPERTY_OUTSIDE"
 
-# The corpus feeders, by file name under --corpus. Fetching them is
-# fetch_corpus.sh's job (leg A); absent files are skipped, not failed.
-CORPUS = [
-    "IEEE13.xml",
-    "IEEE13_Assets.xml",
-    "IEEE37.xml",
-    "IEEE123.xml",
-    "IEEE8500.xml",
-    "final9500nodebalanced.xml",
-]
-FIXTURE_DIRS = ["micro", "pmd", "bmopf", "cim"]
-FIXTURE_ROOT = Path("tests/data/dist")
-HERE = Path(__file__).resolve().parent
-EXPECTED = HERE / "schema_expected.json"
-EXAMPLES = 3
+EXPECTED = common.HERE / "schema_expected.json"
+EXAMPLES = common.EXAMPLES
 
 
 # ---------------------------------------------------------------------------
@@ -156,56 +137,6 @@ class Profile:
     def is_a(self, cls: str, ancestor: str) -> bool:
         klass, base = self.classes.get(cls), self.classes.get(ancestor)
         return klass is not None and base is not None and issubclass(klass, base)
-
-
-# ---------------------------------------------------------------------------
-# Documents
-# ---------------------------------------------------------------------------
-
-
-@dataclasses.dataclass
-class Obj:
-    ns: str
-    cls: str
-    id: str
-    # (namespace, `Class.property`, literal text or None, reference or None,
-    # has nested elements)
-    props: list[tuple[str, str, str | None, str | None, bool]]
-
-
-def split(tag: str) -> tuple[str, str]:
-    ns, _, local = tag[1:].partition("}")
-    return ns, local
-
-
-def object_id(elem: ET.Element) -> str:
-    if RDF_ID in elem.attrib:
-        return elem.attrib[RDF_ID]
-    return elem.attrib.get(RDF_ABOUT, "").lstrip("#")
-
-
-def read_objects(path: Path) -> list[Obj]:
-    """The top level objects of an RDF/XML document, streamed so the 40 MB
-    feeders do not hold an element tree."""
-    objects: list[Obj] = []
-    depth = 0
-    for event, elem in ET.iterparse(path, events=("start", "end")):
-        if event == "start":
-            depth += 1
-            continue
-        depth -= 1
-        if depth != 1:
-            continue
-        ns, cls = split(elem.tag)
-        props = []
-        for child in elem:
-            pns, name = split(child.tag)
-            resource = child.attrib.get(RDF_RESOURCE)
-            text = None if resource is not None else (child.text or "").strip()
-            props.append((pns, name, text, resource, len(child) > 0))
-        objects.append(Obj(ns, cls, object_id(elem), props))
-        elem.clear()
-    return objects
 
 
 # ---------------------------------------------------------------------------
@@ -311,55 +242,8 @@ def check_document(path: Path, vocab: Profile, profile: Profile) -> Findings:
 # ---------------------------------------------------------------------------
 
 
-def fresh_cim(powerio: str, source: Path, work: Path) -> tuple[Path | None, str]:
-    """PowerIO's canonical cim-dist output for `source`, or the reason it
-    has none: `unparsed` when the fixture is not a standalone case, or the
-    diagnostic code the CLI refused the conversion with."""
-    ir = work / f"{source.name}.pio.json"
-    out = work / f"{source.name}.cim.xml"
-    # serialize exits nonzero when the reader reports errors (for example a
-    # segment on wire geometry) but still writes the document; the convert
-    # step then decides.
-    subprocess.run(
-        [powerio, "serialize", str(source), "-o", str(ir)],
-        capture_output=True,
-        text=True,
-    )
-    if not ir.exists():
-        return None, "unparsed"
-    done = subprocess.run(
-        [powerio, "convert", str(ir), "--to", "cim-dist", "-o", str(out)],
-        capture_output=True,
-        text=True,
-    )
-    if done.returncode != 0:
-        codes = re.findall(r"\b([A-Z]+(?:\.[A-Z_]+){2,})\b", done.stderr)
-        return None, codes[-1] if codes else f"exit {done.returncode}"
-    return out, ""
-
-
-def fixtures() -> list[Path]:
-    paths = []
-    for directory in FIXTURE_DIRS:
-        for path in sorted((FIXTURE_ROOT / directory).iterdir()):
-            if path.suffix in (".dss", ".json", ".xml"):
-                paths.append(path)
-    return paths
-
-
 def append_result(case: str, mark: str) -> None:
-    out = os.environ.get("PIO_RESULTS_TSV")
-    if out:
-        with open(out, "a", encoding="utf-8") as fh:
-            fh.write(f"{case}\tcim_schema\t{mark}\n")
-
-
-def compare(case: str, got: Counter[str], expected: dict[str, int]) -> list[str]:
-    lines = []
-    for key in sorted(set(got) | set(expected)):
-        if got.get(key, 0) != expected.get(key, 0):
-            lines.append(f"  {key}: expected {expected.get(key, 0)}, got {got.get(key, 0)}")
-    return lines
+    common.append_result(case, "cim_schema", mark)
 
 
 def render_report(rows: list[tuple[str, str, Counter[str]]]) -> str:
@@ -387,27 +271,21 @@ def render_report(rows: list[tuple[str, str, Counter[str]]]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--powerio", default="target/release/powerio")
-    parser.add_argument("--corpus", type=Path, default=Path("tests/data/large/cim_dist"))
+    parser.add_argument("--corpus", type=Path, default=common.DEFAULT_CORPUS)
     parser.add_argument("--update-expected", action="store_true")
     parser.add_argument("--report", type=Path)
     parser.add_argument("--verbose", action="store_true", help="print every finding")
     args = parser.parse_args()
-    # Windows resolves neither a relative program path nor a missing .exe.
-    found = shutil.which(args.powerio)
-    if found is None:
-        sys.exit(f"powerio CLI not found: {args.powerio}")
-    args.powerio = os.path.abspath(found)
+    args.powerio = common.resolve_powerio(args.powerio)
 
     vocab = Profile(VOCABULARY_PROFILE)
     profile = Profile(PROFILE)
-    expected_doc = json.loads(EXPECTED.read_text(encoding="utf-8")) if EXPECTED.exists() else {}
-    expected = expected_doc.get("cases", {})
+    expected = common.Expected(EXPECTED)
 
     # (case id, document or None, reason when None)
     cases: list[tuple[str, Path | None, str]] = []
     failures = 0
     rows: list[tuple[str, str, Counter[str]]] = []
-    observed: dict[str, dict[str, int]] = {}
 
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
@@ -420,9 +298,9 @@ def main() -> int:
             if why == "unparsed":
                 continue
             cases.append((f"{path.as_posix()} output", out, why))
-        for name in CORPUS:
-            path = args.corpus / name
-            case = f"corpus/{name}"
+        for feeder in common.corpus_feeders():
+            path = args.corpus / feeder.file
+            case = f"corpus/{feeder.file}"
             if not path.exists():
                 rows.append((f"{case} source", "skip (not fetched)", Counter()))
                 append_result(case, "skip")
@@ -442,8 +320,7 @@ def main() -> int:
             else:
                 findings = check_document(doc, vocab, profile)
                 got, examples = findings.counts, findings.examples
-            observed[case] = dict(sorted(got.items()))
-            diff = compare(case, got, expected.get(case, {}))
+            diff = expected.check(case, got)
             status = "ok" if not diff else "FAIL"
             if diff and not args.update_expected:
                 failures += 1
@@ -459,14 +336,9 @@ def main() -> int:
             append_result(case, rows[-1][1])
 
     if args.update_expected:
-        # Keep the expectations for corpus cases this run could not see.
-        for case, counts in expected.items():
-            observed.setdefault(case, counts)
-        expected_doc["cases"] = dict(sorted(observed.items()))
-        EXPECTED.write_text(json.dumps(expected_doc, indent=2) + "\n", encoding="utf-8")
-        print(f"wrote {EXPECTED}")
+        expected.write()
     if args.report:
-        args.report.write_text(render_report(rows), encoding="utf-8")
+        common.write_text(args.report, render_report(rows))
     checked = sum(1 for _, doc, _ in cases if doc is not None)
     print(f"{checked} documents checked, {failures} cases differ from {EXPECTED.name}")
     return 1 if failures else 0

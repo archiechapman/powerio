@@ -1,0 +1,315 @@
+{
+  "notes": {
+    "about": "Expected leg C counts per case and CIM-Graph profile, written by cimgraph_compare.py --update-expected. Recorded with the cim-dist reader and writer of main plus #680 (transformer tanks). C1 and C2 findings on PowerIO, and C3 findings PowerIO causes, enter this file only with a note below. C1.LOG and C2.LOG count CIM-Graph's own warnings on reading a document and are recorded as observed. Corpus cases are kept when the corpus is absent.",
+    "C3.DROPPED TransformerTank, C3.MISSING transformers, C3.FIELD buses.grounded / buses.terminals (rc4_2021, Powergrid-Models sources)": "CIM-Graph: rc4_2021 does not declare Asset.PowerSystemResources, so CIM-Graph reads no link from an Asset to its tank and write_xml writes none; PowerIO then finds no TransformerTankInfo for any tank and drops it. The bus terminal and grounding differences are the buses those tanks grounded. cim17v40 keeps the link and none of this appears.",
+    "C3.DROPPED TransformerCoreAdmittance, C3.FIELD transformers.extras.%imag / %noloadloss (Powergrid-Models sources)": "PowerIO reader gap: write_xml states the association from the end (TransformerEnd.CoreAdmittance) rather than TransformerCoreAdmittance.TransformerEnd, and the cim-dist reader follows only the latter. Both are valid RDF for one association. Candidate reader fix in a later PR; this note goes when it lands.",
+    "C3.FIELD *.extras.cim_mrid, transformers.extras.cim_end_mrids (micro_feeder.xml)": "CIM-Graph: an identifier that is not a UUID (the fixture's _sourcebus, _line1, ...) gets a UUID CIM-Graph derives from it, and write_xml writes that UUID, so the re-serialisation renames every object. C1 and C2 identify objects by CIM-Graph's graph keys, which keep the source's identifiers.",
+    "C3.FIELD shunts.b (micro_feeder.xml)": "The fixture's non-standard ShuntCompensatorPhase.bPerSection (see schema_expected.json) is outside both profiles, so CIM-Graph drops it.",
+    "C3.FIELD transformers.xsc_pct (micro_feeder.xml, rc4_2021)": "CIM-Graph: rc4_2021 does not declare PowerTransformerEnd.x (GridAPPS-D states reactance on TransformerMeshImpedance), so the reactance of a PowerTransformerEnd form transformer is lost.",
+    "C2.NOT_WRITTEN": "PowerIO refuses the conversion with the stated code (wire geometry for IEEE 13 Assets and the 9500 node feeder; a reader error in the BMOPF ENWL fixture), so there is no output to compare."
+  },
+  "cases": {
+    "corpus/IEEE123.xml output [cim17v40]": {},
+    "corpus/IEEE123.xml output [rc4_2021]": {
+      "C2.LOG Association PowerSystemResources missing from class Asset in data profile": 1,
+      "C2.LOG Association phases missing from class Terminal in data profile": 1,
+      "C2.LOG Association x missing from class PowerTransformerEnd in data profile": 1,
+      "C2.LOG Could not identify inverse for Asset association None": 6
+    },
+    "corpus/IEEE123.xml source [cim17v40]": {
+      "C1.LOG Association OperationalLimitSet missing from class ConnectivityNode in data profile": 1,
+      "C1.LOG Association discrete missing from class RegulatingControl in data profile": 1,
+      "C1.LOG Could not identify inverse for ConnectivityNode association None": 130,
+      "C3.DROPPED TransformerCoreAdmittance": 2,
+      "C3.FIELD transformers.extras.%imag": 2,
+      "C3.FIELD transformers.extras.%noloadloss": 2
+    },
+    "corpus/IEEE123.xml source [rc4_2021]": {
+      "C1.LOG Association PowerSystemResources missing from class Asset in data profile": 1,
+      "C1.LOG Association pFrequencyExponent missing from class LoadResponseCharacteristic in data profile": 1,
+      "C1.LOG Association qFrequencyExponent missing from class LoadResponseCharacteristic in data profile": 1,
+      "C1.LOG Association tculControlMode missing from class RatioTapChanger in data profile": 1,
+      "C1.LOG Could not identify inverse for Asset association None": 13,
+      "C3.DROPPED TransformerCoreAdmittance": 2,
+      "C3.DROPPED TransformerTank": 6,
+      "C3.FIELD buses.grounded": 5,
+      "C3.FIELD buses.terminals": 5,
+      "C3.FIELD transformers.extras.%imag": 2,
+      "C3.FIELD transformers.extras.%noloadloss": 2,
+      "C3.MISSING transformers": 6
+    },
+    "corpus/IEEE13.xml output [cim17v40]": {},
+    "corpus/IEEE13.xml output [rc4_2021]": {
+      "C2.LOG Association PowerSystemResources missing from class Asset in data profile": 1,
+      "C2.LOG Association phases missing from class Terminal in data profile": 1,
+      "C2.LOG Association x missing from class PowerTransformerEnd in data profile": 1,
+      "C2.LOG Could not identify inverse for Asset association None": 4
+    },
+    "corpus/IEEE13.xml source [cim17v40]": {
+      "C1.LOG Association OperationalLimitSet missing from class ConnectivityNode in data profile": 1,
+      "C1.LOG Association discrete missing from class RegulatingControl in data profile": 1,
+      "C1.LOG Could not identify inverse for ConnectivityNode association None": 22,
+      "C1.LOG Object with ID <id> not found for PowerElectronicsConnection.PowerElectronicsUnit": 2,
+      "C1.LOG PhotovoltaicUnit not in data profile": 4,
+      "C3.DROPPED TransformerCoreAdmittance": 2,
+      "C3.FIELD transformers.extras.%imag": 2,
+      "C3.FIELD transformers.extras.%noloadloss": 2
+    },
+    "corpus/IEEE13.xml source [rc4_2021]": {
+      "C1.LOG Association PowerSystemResources missing from class Asset in data profile": 1,
+      "C1.LOG Association batteryState missing from class BatteryUnit in data profile": 1,
+      "C1.LOG Association pFrequencyExponent missing from class LoadResponseCharacteristic in data profile": 1,
+      "C1.LOG Association qFrequencyExponent missing from class LoadResponseCharacteristic in data profile": 1,
+      "C1.LOG Association tculControlMode missing from class RatioTapChanger in data profile": 1,
+      "C1.LOG Could not identify inverse for Asset association None": 7,
+      "C3.DROPPED TransformerCoreAdmittance": 2,
+      "C3.DROPPED TransformerTank": 4,
+      "C3.FIELD buses.grounded": 2,
+      "C3.FIELD buses.terminals": 2,
+      "C3.FIELD transformers.extras.%imag": 2,
+      "C3.FIELD transformers.extras.%noloadloss": 2,
+      "C3.MISSING transformers": 4
+    },
+    "corpus/IEEE13_Assets.xml output [cim17v40]": {
+      "C2.NOT_WRITTEN BUILD.DIST.ELECTRICAL_INCOMPLETE": 1
+    },
+    "corpus/IEEE13_Assets.xml output [rc4_2021]": {
+      "C2.NOT_WRITTEN BUILD.DIST.ELECTRICAL_INCOMPLETE": 1
+    },
+    "corpus/IEEE13_Assets.xml source [cim17v40]": {
+      "C1.LOG Association OperationalLimitSet missing from class ConnectivityNode in data profile": 1,
+      "C1.LOG Association discrete missing from class RegulatingControl in data profile": 2,
+      "C1.LOG Could not identify inverse for ConnectivityNode association None": 16
+    },
+    "corpus/IEEE13_Assets.xml source [rc4_2021]": {
+      "C1.LOG Association PowerSystemResources missing from class Asset in data profile": 1,
+      "C1.LOG Association insulationMaterial missing from class WireInfo in data profile": 2,
+      "C1.LOG Association pFrequencyExponent missing from class LoadResponseCharacteristic in data profile": 1,
+      "C1.LOG Association qFrequencyExponent missing from class LoadResponseCharacteristic in data profile": 1,
+      "C1.LOG Association tculControlMode missing from class RatioTapChanger in data profile": 1,
+      "C1.LOG Association usage missing from class WireSpacingInfo in data profile": 1,
+      "C1.LOG Could not identify inverse for Asset association None": 8,
+      "C3.DROPPED TransformerTank": 5,
+      "C3.FIELD buses.grounded": 1,
+      "C3.FIELD buses.terminals": 1,
+      "C3.MISSING transformers": 5
+    },
+    "corpus/IEEE37.xml output [cim17v40]": {},
+    "corpus/IEEE37.xml output [rc4_2021]": {
+      "C2.LOG Association PowerSystemResources missing from class Asset in data profile": 1,
+      "C2.LOG Association phases missing from class Terminal in data profile": 1,
+      "C2.LOG Association x missing from class PowerTransformerEnd in data profile": 1,
+      "C2.LOG Could not identify inverse for Asset association None": 2
+    },
+    "corpus/IEEE37.xml source [cim17v40]": {
+      "C1.LOG Association OperationalLimitSet missing from class ConnectivityNode in data profile": 1,
+      "C1.LOG Association discrete missing from class RegulatingControl in data profile": 1,
+      "C1.LOG Could not identify inverse for ConnectivityNode association None": 39,
+      "C3.DROPPED TransformerCoreAdmittance": 2,
+      "C3.FIELD transformers.extras.%imag": 2,
+      "C3.FIELD transformers.extras.%noloadloss": 2
+    },
+    "corpus/IEEE37.xml source [rc4_2021]": {
+      "C1.LOG Association PowerSystemResources missing from class Asset in data profile": 1,
+      "C1.LOG Association pFrequencyExponent missing from class LoadResponseCharacteristic in data profile": 1,
+      "C1.LOG Association qFrequencyExponent missing from class LoadResponseCharacteristic in data profile": 1,
+      "C1.LOG Association tculControlMode missing from class RatioTapChanger in data profile": 1,
+      "C1.LOG Could not identify inverse for Asset association None": 4,
+      "C3.DROPPED TransformerCoreAdmittance": 2,
+      "C3.DROPPED TransformerTank": 2,
+      "C3.FIELD transformers.extras.%imag": 2,
+      "C3.FIELD transformers.extras.%noloadloss": 2,
+      "C3.MISSING transformers": 2
+    },
+    "corpus/IEEE8500.xml output [cim17v40]": {},
+    "corpus/IEEE8500.xml output [rc4_2021]": {
+      "C2.LOG Association PowerSystemResources missing from class Asset in data profile": 1,
+      "C2.LOG Association phases missing from class Terminal in data profile": 1,
+      "C2.LOG Association x missing from class PowerTransformerEnd in data profile": 1,
+      "C2.LOG Could not identify inverse for Asset association None": 1189
+    },
+    "corpus/IEEE8500.xml source [cim17v40]": {
+      "C1.LOG Association OperationalLimitSet missing from class ConnectivityNode in data profile": 1,
+      "C1.LOG Association discrete missing from class RegulatingControl in data profile": 2,
+      "C1.LOG Could not identify inverse for ConnectivityNode association None": 4876,
+      "C3.DROPPED TransformerCoreAdmittance": 1,
+      "C3.FIELD transformers.extras.%imag": 1,
+      "C3.FIELD transformers.extras.%noloadloss": 1
+    },
+    "corpus/IEEE8500.xml source [rc4_2021]": {
+      "C1.LOG Association PowerSystemResources missing from class Asset in data profile": 1,
+      "C1.LOG Association pFrequencyExponent missing from class LoadResponseCharacteristic in data profile": 1,
+      "C1.LOG Association qFrequencyExponent missing from class LoadResponseCharacteristic in data profile": 1,
+      "C1.LOG Association tculControlMode missing from class RatioTapChanger in data profile": 1,
+      "C1.LOG Could not identify inverse for Asset association None": 1201,
+      "C3.DROPPED TransformerCoreAdmittance": 1,
+      "C3.DROPPED TransformerTank": 1189,
+      "C3.FIELD buses.grounded": 2323,
+      "C3.FIELD buses.terminals": 2323,
+      "C3.FIELD transformers.extras.%imag": 1,
+      "C3.FIELD transformers.extras.%noloadloss": 1,
+      "C3.MISSING transformers": 1189
+    },
+    "corpus/final9500nodebalanced.xml output [cim17v40]": {
+      "C2.NOT_WRITTEN BUILD.DIST.ELECTRICAL_INCOMPLETE": 1
+    },
+    "corpus/final9500nodebalanced.xml output [rc4_2021]": {
+      "C2.NOT_WRITTEN BUILD.DIST.ELECTRICAL_INCOMPLETE": 1
+    },
+    "corpus/final9500nodebalanced.xml source [cim17v40]": {
+      "C1.LOG Association OperationalLimitSet missing from class ConnectivityNode in data profile": 1,
+      "C1.LOG Association discrete missing from class RegulatingControl in data profile": 2,
+      "C1.LOG Could not identify inverse for ConnectivityNode association None": 5294,
+      "C1.LOG Object with ID <id> not found for PowerElectronicsConnection.PowerElectronicsUnit": 178,
+      "C1.LOG PhotovoltaicUnit not in data profile": 356,
+      "C3.DROPPED TransformerCoreAdmittance": 11,
+      "C3.FIELD transformers.extras.%imag": 11,
+      "C3.FIELD transformers.extras.%noloadloss": 11
+    },
+    "corpus/final9500nodebalanced.xml source [rc4_2021]": {
+      "C1.LOG Association PowerSystemResources missing from class Asset in data profile": 1,
+      "C1.LOG Association batteryState missing from class BatteryUnit in data profile": 1,
+      "C1.LOG Association insulationMaterial missing from class WireInfo in data profile": 1,
+      "C1.LOG Association pFrequencyExponent missing from class LoadResponseCharacteristic in data profile": 1,
+      "C1.LOG Association qFrequencyExponent missing from class LoadResponseCharacteristic in data profile": 1,
+      "C1.LOG Association tculControlMode missing from class RatioTapChanger in data profile": 1,
+      "C1.LOG Association usage missing from class WireSpacingInfo in data profile": 1,
+      "C1.LOG Could not identify inverse for Asset association None": 1311,
+      "C3.DROPPED TransformerCoreAdmittance": 11,
+      "C3.DROPPED TransformerTank": 1293,
+      "C3.FIELD buses.grounded": 1327,
+      "C3.FIELD buses.terminals": 1327,
+      "C3.FIELD transformers.extras.%imag": 11,
+      "C3.FIELD transformers.extras.%noloadloss": 11,
+      "C3.MISSING transformers": 1293
+    },
+    "tests/data/dist/bmopf/example_enwl_n1_f2.json output [cim17v40]": {
+      "C2.NOT_WRITTEN PARSE.CLI.ERRORS_REPORTED": 1
+    },
+    "tests/data/dist/bmopf/example_enwl_n1_f2.json output [rc4_2021]": {
+      "C2.NOT_WRITTEN PARSE.CLI.ERRORS_REPORTED": 1
+    },
+    "tests/data/dist/bmopf/example_ieee13.json output [cim17v40]": {},
+    "tests/data/dist/bmopf/example_ieee13.json output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1,
+      "C2.LOG Association x missing from class PowerTransformerEnd in data profile": 1
+    },
+    "tests/data/dist/cim/micro_feeder.xml output [cim17v40]": {
+      "C2.LOG URI <id> not a valid UUID, generating new UUID": 13
+    },
+    "tests/data/dist/cim/micro_feeder.xml output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1,
+      "C2.LOG Association x missing from class PowerTransformerEnd in data profile": 1,
+      "C2.LOG URI <id> not a valid UUID, generating new UUID": 13
+    },
+    "tests/data/dist/cim/micro_feeder.xml source [cim17v40]": {
+      "C1.LOG Association bPerSection missing from class ShuntCompensatorPhase in data profile": 1,
+      "C1.LOG Association gPerSection missing from class ShuntCompensatorPhase in data profile": 1,
+      "C1.LOG URI <id> not a valid UUID, generating new UUID": 40,
+      "C3.FIELD buses.extras.cim_mrid": 4,
+      "C3.FIELD linecodes.extras.cim_mrid": 1,
+      "C3.FIELD lines.extras.cim_mrid": 1,
+      "C3.FIELD loads.extras.cim_mrid": 1,
+      "C3.FIELD shunts.b": 1,
+      "C3.FIELD shunts.extras.cim_mrid": 1,
+      "C3.FIELD sources.extras.cim_mrid": 1,
+      "C3.FIELD switches.extras.cim_mrid": 1,
+      "C3.FIELD transformers.extras.cim_end_mrids": 1,
+      "C3.FIELD transformers.extras.cim_mrid": 1
+    },
+    "tests/data/dist/cim/micro_feeder.xml source [rc4_2021]": {
+      "C1.LOG Association bPerSection missing from class ShuntCompensatorPhase in data profile": 1,
+      "C1.LOG Association gPerSection missing from class ShuntCompensatorPhase in data profile": 1,
+      "C1.LOG Association phases missing from class Terminal in data profile": 1,
+      "C1.LOG Association x missing from class PowerTransformerEnd in data profile": 1,
+      "C1.LOG URI <id> not a valid UUID, generating new UUID": 40,
+      "C3.FIELD buses.extras.cim_mrid": 4,
+      "C3.FIELD linecodes.extras.cim_mrid": 1,
+      "C3.FIELD lines.extras.cim_mrid": 1,
+      "C3.FIELD loads.extras.cim_mrid": 1,
+      "C3.FIELD shunts.b": 1,
+      "C3.FIELD shunts.extras.cim_mrid": 1,
+      "C3.FIELD sources.extras.cim_mrid": 1,
+      "C3.FIELD switches.extras.cim_mrid": 1,
+      "C3.FIELD transformers.extras.cim_end_mrids": 1,
+      "C3.FIELD transformers.extras.cim_mrid": 1,
+      "C3.FIELD transformers.xsc_pct": 1
+    },
+    "tests/data/dist/micro/defaults_degenerate.dss output [cim17v40]": {},
+    "tests/data/dist/micro/defaults_degenerate.dss output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1,
+      "C2.LOG Association x missing from class PowerTransformerEnd in data profile": 1
+    },
+    "tests/data/dist/micro/fourwire_linecode.dss output [cim17v40]": {},
+    "tests/data/dist/micro/fourwire_linecode.dss output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1
+    },
+    "tests/data/dist/micro/ibr_pv_control.dss output [cim17v40]": {},
+    "tests/data/dist/micro/ibr_pv_control.dss output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1
+    },
+    "tests/data/dist/micro/lindist3flow_oracle.dss output [cim17v40]": {},
+    "tests/data/dist/micro/lindist3flow_oracle.dss output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1
+    },
+    "tests/data/dist/micro/linecode_10x10.dss output [cim17v40]": {},
+    "tests/data/dist/micro/linecode_10x10.dss output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1
+    },
+    "tests/data/dist/micro/neutral_grounding_reactor.dss output [cim17v40]": {},
+    "tests/data/dist/micro/neutral_grounding_reactor.dss output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1
+    },
+    "tests/data/dist/micro/onephase_cvr_load.dss output [cim17v40]": {},
+    "tests/data/dist/micro/onephase_cvr_load.dss output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1
+    },
+    "tests/data/dist/micro/onephase_zip_load.dss output [cim17v40]": {},
+    "tests/data/dist/micro/onephase_zip_load.dss output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1
+    },
+    "tests/data/dist/micro/switch.dss output [cim17v40]": {},
+    "tests/data/dist/micro/switch.dss output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1
+    },
+    "tests/data/dist/micro/xfmr_1ph_delta_wye.dss output [cim17v40]": {},
+    "tests/data/dist/micro/xfmr_1ph_delta_wye.dss output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1,
+      "C2.LOG Association x missing from class PowerTransformerEnd in data profile": 1
+    },
+    "tests/data/dist/micro/xfmr_center_tap.dss output [cim17v40]": {},
+    "tests/data/dist/micro/xfmr_center_tap.dss output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1,
+      "C2.LOG Association x missing from class PowerTransformerEnd in data profile": 1
+    },
+    "tests/data/dist/micro/xfmr_delta_wye.dss output [cim17v40]": {},
+    "tests/data/dist/micro/xfmr_delta_wye.dss output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1,
+      "C2.LOG Association x missing from class PowerTransformerEnd in data profile": 1
+    },
+    "tests/data/dist/micro/xfmr_open_wye_open_delta.dss output [cim17v40]": {},
+    "tests/data/dist/micro/xfmr_open_wye_open_delta.dss output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1,
+      "C2.LOG Association x missing from class PowerTransformerEnd in data profile": 1
+    },
+    "tests/data/dist/micro/xfmr_single_phase.dss output [cim17v40]": {},
+    "tests/data/dist/micro/xfmr_single_phase.dss output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1,
+      "C2.LOG Association x missing from class PowerTransformerEnd in data profile": 1
+    },
+    "tests/data/dist/micro/xfmr_wye_delta.dss output [cim17v40]": {},
+    "tests/data/dist/micro/xfmr_wye_delta.dss output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1,
+      "C2.LOG Association x missing from class PowerTransformerEnd in data profile": 1
+    },
+    "tests/data/dist/pmd/fourwire_linecode.json output [cim17v40]": {},
+    "tests/data/dist/pmd/fourwire_linecode.json output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1
+    },
+    "tests/data/dist/pmd/ieee13.json output [cim17v40]": {},
+    "tests/data/dist/pmd/ieee13.json output [rc4_2021]": {
+      "C2.LOG Association phases missing from class Terminal in data profile": 1,
+      "C2.LOG Association x missing from class PowerTransformerEnd in data profile": 1
+    }
+  }
+}

@@ -8,10 +8,12 @@
     "VOCAB.PROPERTY_UNKNOWN RegulatingControl.discrete, ConnectivityNode.OperationalLimitSet (Powergrid-Models sources)": "Upstream: neither property is declared in cim17v40 (both appear in older CIM16 or GridAPPS-D usage).",
     "PROFILE.PROPERTY_OUTSIDE Terminal.phases, PowerTransformerEnd.x (PowerIO output)": "The rc4_2021 profile leaves out Terminal.phases and the PowerTransformerEnd series impedance (GridAPPS-D uses per-phase classes and TransformerMeshImpedance); both are valid cim17v40.",
     "CONVERT.REFUSED BUILD.DIST.ELECTRICAL_INCOMPLETE (IEEE13_Assets, 9500 node)": "Segments described by wire spacing and wire data have no impedance the reader can use yet (wire geometry follow-up).",
-    "CONVERT.REFUSED PARSE.CLI.ERRORS_REPORTED (bmopf/example_enwl_n1_f2.json)": "The CLI refuses to convert a case whose reader reported errors; the Rust stable-CIM test writes it through the library instead."
+    "CONVERT.REFUSED PARSE.CLI.ERRORS_REPORTED (bmopf/example_enwl_n1_f2.json)": "The CLI refuses to convert a case whose reader reported errors; the Rust stable-CIM test writes it through the library instead.",
+    "PROFILE.PROPERTY_OUTSIDE Asset.PowerSystemResources (PowerIO output of the Powergrid-Models feeders)": "Since #680 the writer writes tanks read from CIM back as tanks, each linked to its catalog entry by Asset.PowerSystemResources as the sources do; rc4_2021 omits that property. cim17v40 declares it, so the output has no vocabulary findings."
   },
   "cases": {
     "corpus/IEEE123.xml output": {
+      "PROFILE.PROPERTY_OUTSIDE Asset.PowerSystemResources": 6,
       "PROFILE.PROPERTY_OUTSIDE PowerTransformerEnd.x": 4,
       "PROFILE.PROPERTY_OUTSIDE Terminal.phases": 352
     },
@@ -24,6 +26,7 @@
       "VOCAB.PROPERTY_UNKNOWN RegulatingControl.discrete": 7
     },
     "corpus/IEEE13.xml output": {
+      "PROFILE.PROPERTY_OUTSIDE Asset.PowerSystemResources": 4,
       "PROFILE.PROPERTY_OUTSIDE PowerTransformerEnd.x": 5,
       "PROFILE.PROPERTY_OUTSIDE Terminal.phases": 56
     },
@@ -53,6 +56,7 @@
       "VOCAB.PROPERTY_UNKNOWN RegulatingControl.discrete": 5
     },
     "corpus/IEEE37.xml output": {
+      "PROFILE.PROPERTY_OUTSIDE Asset.PowerSystemResources": 2,
       "PROFILE.PROPERTY_OUTSIDE PowerTransformerEnd.x": 4,
       "PROFILE.PROPERTY_OUTSIDE Terminal.phases": 107
     },
@@ -65,6 +69,7 @@
       "VOCAB.PROPERTY_UNKNOWN RegulatingControl.discrete": 2
     },
     "corpus/IEEE8500.xml output": {
+      "PROFILE.PROPERTY_OUTSIDE Asset.PowerSystemResources": 1189,
       "PROFILE.PROPERTY_OUTSIDE PowerTransformerEnd.x": 2,
       "PROFILE.PROPERTY_OUTSIDE Terminal.phases": 8588
     },

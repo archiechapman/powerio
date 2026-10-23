@@ -1,0 +1,45 @@
+# Leg A: the distribution CIM corpus. fetch_corpus.sh downloads each feeder
+# named here into tests/data/large/cim_dist/ (gitignored) and checks its
+# SHA-256. The feeders are fetched, never vendored: the Powergrid-Models
+# release branch has no licence file at its root.
+#
+# A feeder's expected findings live with the leg that checks it
+# (census_expected.json, cimgraph_expected.json, schema_expected.json), so
+# a behaviour change edits the expectations of the legs it affects.
+
+[corpus.powergrid_models]
+description = "GridAPPS-D Powergrid-Models releases/2024.06.0, platform/cimxml (CIM100, one document per feeder)"
+repository = "https://github.com/GRIDAPPSD/Powergrid-Models"
+# The releases/2024.06.0 branch head, pinned by commit.
+commit = "2ec0ba442b4ef30206c71eab205758e18a77a564"
+base_url = "https://raw.githubusercontent.com/GRIDAPPSD/Powergrid-Models/{commit}/platform/cimxml"
+
+[[corpus.powergrid_models.feeders]]
+file = "IEEE13.xml"
+bytes = 282491
+sha256 = "f05e748a79db61fd50e7f485090e02ca67274e841c00ca570a97d7108f127204"
+
+[[corpus.powergrid_models.feeders]]
+file = "IEEE13_Assets.xml"
+bytes = 246759
+sha256 = "b871c32a3b1957c04e43eb138e56c402ecd70a6b02d87388a5f56e652902242c"
+
+[[corpus.powergrid_models.feeders]]
+file = "IEEE37.xml"
+bytes = 432278
+sha256 = "c63e7038b8577b1d2370af64e2ead3945c1fef3dd530cb6d130593df0041a481"
+
+[[corpus.powergrid_models.feeders]]
+file = "IEEE123.xml"
+bytes = 1097451
+sha256 = "2a0f5fc208d5d6ffdc99b21156c9bd594160e09969cc1f650e09338c4a6ad23b"
+
+[[corpus.powergrid_models.feeders]]
+file = "IEEE8500.xml"
+bytes = 31620351
+sha256 = "25aed065e3d724fd5433fb4bc242c347caac0293bdbfe81553435e575aab5d9c"
+
+[[corpus.powergrid_models.feeders]]
+file = "final9500nodebalanced.xml"
+bytes = 37465764
+sha256 = "11343c78f1f1bc9f917717f689e8d8cb02be2b79fc22b04691584ff221f55763"

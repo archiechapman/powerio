@@ -4,9 +4,132 @@ Opt-in validation of the `cim-dist` reader and writer against independent CIM
 tooling, run on PowerIO's own fixtures and on public distribution feeders.
 Nothing here runs in `cargo test` or the default CI gate.
 
-This directory holds leg D, schema conformance. The census, CIM-Graph
-structural comparison, OpenDSS electrical comparison and benchmark legs join
-it in later changes (#456).
+```
+bash evals/validation/cim_dist/run_cim_dist_validation.sh            # every leg
+bash evals/validation/cim_dist/run_cim_dist_validation.sh census     # one or more legs
+bash evals/validation/cim_dist/run_cim_dist_validation.sh -- --update-expected
+```
+
+The runner creates the `.venv-cim` virtualenv (`requirements-cim.txt`;
+`CIM_VENV` overrides it), fetches the corpus (leg A; `CIM_DIST_FETCH=0`
+skips it), builds the CLI if `POWERIO` is unset and none is built, runs the
+legs, and replaces their sections of `RESULTS.md`. It exits nonzero when any
+case differs from its leg's `*_expected.json`. Each leg is also a script that
+runs on its own (`--help`). A full run takes a few minutes (four on a
+laptop), most of it CIM-Graph on the two large feeders.
+
+| Leg | Script | Checks |
+|---|---|---|
+| A | `fetch_corpus.sh`, `manifest.toml` | The corpus, pinned by commit and SHA-256 |
+| B | `census.py` | What PowerIO reads from each CIM source, reconciled with the source |
+| C | `cimgraph_compare.py` | Structure against CIM-Graph, in three directions |
+| D | `schema_check.py` | PowerIO's output and the sources against CIM-Graph's profile classes |
+
+The OpenDSS electrical comparison and benchmark legs join them in later
+changes (#456). The expected files were recorded with the reader and writer
+of `main` plus #680 (transformer tanks).
+
+## Leg A: corpus
+
+```
+bash evals/validation/cim_dist/fetch_corpus.sh
+```
+
+`manifest.toml` names each feeder with its source commit, size and SHA-256.
+The fetch script downloads only those files into `tests/data/large/cim_dist/`
+(gitignored, or `CIM_DIST_CORPUS`), keeps a file already present with the
+right digest, and fails on a mismatch. The feeders are GridAPPS-D
+Powergrid-Models `releases/2024.06.0` `platform/cimxml` at commit `2ec0ba4`
+(IEEE 13, IEEE 13 Assets, IEEE 37, IEEE 123, IEEE 8500, and the 9500 node
+balanced feeder). They are fetched, never vendored: the release branch has no
+licence file at its root. Every leg skips a feeder that is absent, so the
+fixture cases run with no download.
+
+## Leg B: census
+
+`census.py` takes each CIM source (`tests/data/dist/cim/*.xml` and the
+corpus) and records, with no oracle beyond the source itself:
+
+- the source's class counts, streamed independently of PowerIO;
+- PowerIO's table counts, each reconciled with the source classes it maps
+  from: buses from `ConnectivityNode`, lines from `ACLineSegment`, loads from
+  `EnergyConsumer`, shunts from `LinearShuntCompensator`, sources from
+  `EnergySource`, switches from the switch classes, and transformers from
+  each `TransformerTank` and each `PowerTransformer` that owns no tank. A
+  table holds every object of its classes less the ones PowerIO reports
+  dropping (`RECORD_DROPPED`); anything left over is `MAP.UNEXPLAINED`.
+  Line codes are not reconciled, because the reader makes them as segments
+  use them; they are split into those taken from a `PerLengthImpedance` and
+  those derived per segment or phase subset;
+- PowerIO's diagnostics, counted by code, CIM class and property;
+- whether conversion to `.dss` succeeds, or its refusal code.
+
+| | |
+|---|---|
+| Oracle | The source document itself (class counts and references) |
+| Settings | PowerIO CLI from the working tree (`POWERIO`): `serialize` for the tables and diagnostics, `convert --to dss` for the conversion |
+| Identity mapping | Tables to source classes as above; drops by the `class` of each `RECORD_DROPPED` diagnostic |
+| Tolerances | Exact: every count equals the expected count |
+| Expected codes | `census_expected.json`, per case |
+
+What it found first: every table reconciles on all seven sources, with
+nothing unexplained. IEEE 8500 reads 1,190 transformers and the 9500 node
+feeder 1,304. IEEE 13 Assets and the 9500 node feeder do not convert to
+`.dss` (`BUILD.DIST.ELECTRICAL_INCOMPLETE`): 2,622 of the 9500 node feeder's
+3,909 segments are on wire geometry (`IMPEDANCE_UNRESOLVED`).
+
+## Leg C: CIM-Graph structural comparison
+
+`cimgraph_compare.py` compares PowerIO with CIM-Graph in three directions:
+
+- **C1, the source read by both.** Per table, the mRIDs CIM-Graph finds for
+  the table's classes equal the `cim_mrid`s PowerIO carries, less PowerIO's
+  reported drops; and each piece of equipment PowerIO carries connects to
+  the same `ConnectivityNode`s, terminal by terminal (a tank's terminals
+  belong to its `PowerTransformer`, as in CIM).
+- **C2, PowerIO's fresh output read by CIM-Graph**, for every distribution
+  fixture and corpus feeder: it loads; the mRIDs PowerIO read come back
+  unchanged; and CIM-Graph's counts per table equal PowerIO's, less the
+  records the writer reports dropping.
+- **C3, CIM-Graph's re-serialisation of the source read by PowerIO**
+  (`cimgraph.utils.write_xml`): the network equals PowerIO's direct read,
+  record by record and field by field, and no extra record is dropped. This
+  tests PowerIO against a second serializer: `rdf:about` with `urn:uuid:`,
+  classes in alphabetical order, and associations stated from whichever end
+  CIM-Graph keeps.
+
+Each runs under two profiles, since each loses different data: `rc4_2021`
+has no `Asset.PowerSystemResources` or `PowerTransformerEnd.x`, and
+`cim17v40` spells `PhotoVoltaicUnit`. CIM-Graph reads its profile from the
+environment at import, so it runs in a subprocess per document and profile.
+Its parser logs a document it cannot parse as "not found. Skipping." and
+carries on with an empty graph; the harness counts that, and an empty graph,
+as `FATAL`. Its other warnings (properties outside the profile, identifiers
+that are not UUIDs) are counted by message and recorded, since the sources
+raise them too.
+
+| | |
+|---|---|
+| Oracle | CIM-Graph 0.5.0a12 (PNNL, BSD-3): `XMLFile`, `FeederModel`, `write_xml`; profiles `rc4_2021` and `cim17v40`; pinned in `requirements-cim.txt` |
+| Settings | PowerIO CLI from the working tree (`POWERIO`); output written from the IR document, so a CIM source is written canonically, not echoed |
+| Identity mapping | mRIDs without `#`, `urn:uuid:` or a leading underscore, upper case; CIM-Graph objects by their graph key, which keeps a source identifier that is not a UUID; C3 records by `name` (buses by `id`) |
+| Tolerances | Identities and edges exact; C3 numbers within a relative and absolute 1e-9; every count equals the expected count |
+| Expected codes | `cimgraph_expected.json`, per case and profile, with notes for every accepted finding |
+
+What it found first:
+
+- C1 and C2 agree on every case: identities, terminal connectivity, mRIDs
+  through PowerIO's writer, and counts.
+- C3 under `cim17v40` drops every `TransformerCoreAdmittance`, because
+  `write_xml` states the association from the end
+  (`TransformerEnd.CoreAdmittance`) and PowerIO reads only
+  `TransformerCoreAdmittance.TransformerEnd`. That is a reader gap.
+- C3 under `rc4_2021` also drops every tank (1,189 on IEEE 8500): the
+  profile has no `Asset.PowerSystemResources`, so the link from a catalog
+  entry to its tanks is lost before PowerIO sees the document.
+- CIM-Graph renames identifiers that are not UUIDs (`micro_feeder.xml`'s
+  `_sourcebus`) to UUIDs it derives from them, and drops the reactance of a
+  `PowerTransformerEnd` under `rc4_2021`.
 
 ## Leg D: schema conformance
 
@@ -54,24 +177,6 @@ note in its `notes` block saying why.
 | Tolerances | Exact: finding counts per key equal the expected counts |
 | Expected codes | `schema_expected.json`, per case, with notes for every accepted vocabulary finding |
 
-### Corpus
-
-The feeders are GridAPPS-D Powergrid-Models `releases/2024.06.0`
-`platform/cimxml` (IEEE 13, IEEE 13 Assets, IEEE 37, IEEE 123, IEEE 8500, and
-the 9500 node balanced feeder), read from `tests/data/large/cim_dist/`
-(gitignored, or `CIM_DIST_CORPUS`). They are fetched, never vendored: the
-release branch has no licence file at its root. Absent feeders are skipped,
-so the fixture cases run with no download. Until the corpus fetch script
-lands, download them by hand:
-
-```
-base=https://raw.githubusercontent.com/GRIDAPPSD/Powergrid-Models/releases/2024.06.0/platform/cimxml
-mkdir -p tests/data/large/cim_dist
-for f in IEEE13 IEEE13_Assets IEEE37 IEEE123 IEEE8500 final9500nodebalanced; do
-    curl -sSfL -o tests/data/large/cim_dist/$f.xml "$base/$f.xml"
-done
-```
-
 ### What it found first
 
 - PowerIO's writer before #648 used `PhaseImpedanceData.PerLengthPhaseImpedance`,
@@ -85,5 +190,8 @@ done
   `SynchronousMachine.p` (declared on `RotatingMachine`), and
   `RegulatingControl.discrete` and `ConnectivityNode.OperationalLimitSet`,
   which `cim17v40` does not declare.
+- PowerIO's tank output (#680) has no vocabulary findings; it uses
+  `Asset.PowerSystemResources` as the sources do, which `rc4_2021` omits.
 
-`RESULTS.md` holds the rendered per case table from the last run.
+`RESULTS.md` holds the rendered per case tables from the last run of each
+leg.
