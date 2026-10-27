@@ -19,8 +19,8 @@ use std::rc::Rc;
 
 use super::xml::{CimDocument, CimObject, PropValue, parse_cimxml};
 use super::{
-    LEAKAGE_READING, no_load_test_pct, sequence_to_phase, short_circuit_test_pct, wrap_angle,
-    z_base,
+    LEAKAGE_READING, no_load_test_pct, sequence_to_phase, short_circuit_test_pct, tank_phase_clock,
+    wrap_angle, z_base,
 };
 use crate::diagnostics::{Diagnostic, DiagnosticInfo, codes as C};
 use crate::model::{
@@ -548,7 +548,7 @@ fn read_documents(
     let loads = mapper.loads();
     let shunts = mapper.shunts()?;
     let switches = mapper.switches();
-    let transformers = mapper.transformers();
+    let transformers = mapper.transformers()?;
     let sources = mapper.sources();
 
     // Each bus presents the terminals its elements connect.
@@ -1530,6 +1530,7 @@ impl<'a> Mapper<'a> {
             "EnergyConsumer",
             "LinearShuntCompensator",
             "PowerTransformer",
+            "TransformerTank",
             "EnergySource",
         ] {
             for id in self.store.ids_of(class) {
@@ -1541,7 +1542,12 @@ impl<'a> Mapper<'a> {
         }
         // End-to-terminal associations also wire transformers directly; they
         // need not be found through Terminal.ConductingEquipment.
-        for end in self.store.ids_of("PowerTransformerEnd") {
+        for end in self
+            .store
+            .ids_of("PowerTransformerEnd")
+            .into_iter()
+            .chain(self.store.ids_of("TransformerTankEnd"))
+        {
             if let Some(terminal) = self.store.refv(&end, "TransformerEnd.Terminal") {
                 self.ensure_connected_terminal(terminal)?;
             }
@@ -2118,7 +2124,7 @@ impl<'a> Mapper<'a> {
 
     // One pass per transformer form, then the records that hang off neither.
     #[allow(clippy::too_many_lines)]
-    fn transformers(&mut self) -> Vec<DistTransformer> {
+    fn transformers(&mut self) -> Result<Vec<DistTransformer>> {
         let ends_of = self.children_of(
             "PowerTransformerEnd",
             "PowerTransformerEnd.PowerTransformer",
@@ -2148,8 +2154,8 @@ impl<'a> Mapper<'a> {
                     );
                     continue;
                 }
-                    for tank in &tanks {
-                    if let Some(transformer) = self.tank(&id, tank, &index) {
+                for tank in &tanks {
+                    if let Some(transformer) = self.tank(&id, tank, &index)? {
                         transformers.push(transformer);
                     }
                 }
@@ -2238,7 +2244,7 @@ impl<'a> Mapper<'a> {
                 );
             }
         }
-        transformers
+        Ok(transformers)
     }
 
     /// The no-load percentages `(%noloadloss, %imag)` on winding 1's rating
@@ -2344,11 +2350,11 @@ impl<'a> Mapper<'a> {
     /// One `TransformerTank` as a [`DistTransformer`]: windings from its
     /// `TransformerTankEnd`s, ratings, resistances and reactances from its
     /// catalog entry, and taps from the tap changers on its ends.
-    #[allow(clippy::too_many_lines)]
-    fn tank(&mut self, pt: &str, tank: &str, index: &TankIndex) -> Option<DistTransformer> {
+    #[allow(clippy::too_many_lines, clippy::float_cmp)] // clock numbers are discrete
+    fn tank(&mut self, pt: &str, tank: &str, index: &TankIndex) -> Result<Option<DistTransformer>> {
         let Some(links) = index.info_of.get(tank) else {
             self.drop_tank(tank, index, "it has no TransformerTankInfo");
-            return None;
+            return Ok(None);
         };
         let (asset, info) = links[0].clone();
         self.consumed.insert(asset);
@@ -2370,7 +2376,7 @@ impl<'a> Mapper<'a> {
                 index,
                 &format!("its TransformerTankInfo `{info}` has no TransformerEndInfo"),
             );
-            return None;
+            return Ok(None);
         };
         let mut ends: Vec<(f64, String)> = index
             .ends_of
@@ -2389,7 +2395,7 @@ impl<'a> Mapper<'a> {
         ends.sort_by(|a, b| a.0.total_cmp(&b.0));
         if ends.len() < 2 {
             self.drop_tank(tank, index, "it has fewer than two ends");
-            return None;
+            return Ok(None);
         }
         let mut windings = Vec::with_capacity(ends.len());
         let mut numbers = Vec::with_capacity(ends.len());
@@ -2406,12 +2412,12 @@ impl<'a> Mapper<'a> {
                     format!("end {number} has no TransformerEndInfo of the same endNumber")
                 };
                 self.drop_tank(tank, index, &why);
-                return None;
+                return Ok(None);
             };
             let terminal = self.target("TransformerTankEnd", end, "TransformerEnd.Terminal");
             let Some(bus) = terminal.as_deref().and_then(|t| self.bus_of_terminal(t)) else {
                 self.drop_tank(tank, index, "an end has no terminal on a connectivity node");
-                return None;
+                return Ok(None);
             };
             if let Some(terminal) = &terminal {
                 self.store.consume(terminal, "Terminal.phases");
@@ -2426,7 +2432,7 @@ impl<'a> Mapper<'a> {
                     index,
                     &format!("end {number} states no TransformerTankEnd.phases"),
                 );
-                return None;
+                return Ok(None);
             };
             let Some((map, conn)) = tank_terminal_map(&code, info_end.delta) else {
                 self.drop_tank(
@@ -2434,8 +2440,21 @@ impl<'a> Mapper<'a> {
                     index,
                     &format!("end {number} states phases `{code}`, which the reader does not map"),
                 );
-                return None;
+                return Ok(None);
             };
+            if self
+                .store
+                .text(&info_end.id, "TransformerEndInfo.phaseAngleClock")
+                .is_some()
+                && info_end
+                    .clock
+                    .is_none_or(|c| !c.is_finite() || c.fract() != 0.0 || !(0.0..12.0).contains(&c))
+            {
+                return Err(format_error(format!(
+                    "TransformerEndInfo {}: invalid phase-angle clock; electrical conversion refused",
+                    self.label(&info_end.id)
+                )));
+            }
             let mut winding = DistWinding::new(bus, map, conn, info_end.v_ref, info_end.s_rating);
             winding.r_pct = info_end.r_pct;
             self.grounding(end, &mut winding);
@@ -2449,6 +2468,27 @@ impl<'a> Mapper<'a> {
                     .clock
                     .map_or(serde_json::Value::Null, serde_json::Value::from),
             );
+        }
+        let three_phase = windings[0]
+            .terminal_map
+            .iter()
+            .filter(|t| *t != "4")
+            .count()
+            == 3;
+        for (i, winding) in windings.iter().enumerate() {
+            let represented = tank_phase_clock(&windings[0], winding, three_phase);
+            if clocks[i].as_f64().is_some_and(|clock| clock != represented) {
+                return Err(format_error(format!(
+                    "TransformerTank {}: winding {} phase-angle clock {} is not represented by its winding layout (clock {represented}); electrical conversion refused",
+                    self.label(tank),
+                    i + 1,
+                    clocks[i]
+                )));
+            }
+            if clocks[i].is_null() {
+                self.note(&C::READ_CIM_DIST_VALUE_DEFAULTED, "TransformerTank", tank,
+                    format!("TransformerTank {}: winding {} has no phase-angle clock; represented clock {represented} is assumed", self.label(tank), i + 1));
+            }
         }
         let mut xsc = Vec::new();
         let mut missing = Vec::new();
@@ -2503,7 +2543,7 @@ impl<'a> Mapper<'a> {
             extras.insert("%noloadloss".into(), loss.into());
             extras.insert("%imag".into(), imag.into());
         }
-        Some(transformer)
+        Ok(Some(transformer))
     }
 
     /// A `TransformerTankInfo` and everything under it, read once however
@@ -2612,8 +2652,25 @@ impl<'a> Mapper<'a> {
         if ends.is_empty() {
             return None;
         }
-        let (pairs, losses) = self.short_circuit_tests(&ends, index);
+        let (mut pairs, losses) = self.short_circuit_tests(&ends, index);
         self.winding_resistances(info, &mut ends, &losses);
+        // Resolve the winding resistances first: a zero/absent test loss
+        // does not erase resistance stated by the end infos or other tests.
+        for (&(i, j), magnitude) in &mut pairs {
+            let on_base = |number| {
+                ends.iter()
+                    .find(|e| end_key(e.number) == number)
+                    .filter(|e| e.s_rating > 0.0)
+                    .map_or(0.0, |e| e.r_pct * ends[0].s_rating / e.s_rating)
+            };
+            let r = on_base(i) + on_base(j);
+            let square = *magnitude * *magnitude - r * r;
+            if square < 0.0 {
+                self.note(&C::READ_CIM_DIST_VALUE_UNSUPPORTED, "TransformerTankInfo", info,
+                    format!("TransformerTankInfo {}: pair {i}-{j} leakage magnitude is smaller than the resolved winding resistance; pair reactance is 0", self.label(info)));
+            }
+            *magnitude = square.max(0.0).sqrt();
+        }
         let no_load = self.no_load_test(&ends, index);
         Some(Catalog {
             ends,
@@ -2696,7 +2753,7 @@ impl<'a> Mapper<'a> {
                     energised.s_rating
                 });
                 let pct = leakage.and_then(|z| {
-                    short_circuit_test_pct(z, loss, energised.v_ref, base, s_1, LEAKAGE_READING)
+                    short_circuit_test_pct(z, 0.0, energised.v_ref, base, s_1, LEAKAGE_READING)
                 });
                 let Some(pct) = pct else {
                     self.note(
@@ -2711,22 +2768,20 @@ impl<'a> Mapper<'a> {
                     pairs.insert(key, 0.0);
                     continue;
                 };
-                if pct.short {
-                    self.note(
-                        &C::READ_CIM_DIST_VALUE_UNSUPPORTED,
-                        "ShortCircuitTest",
-                        test,
-                        format!(
-                            "ShortCircuitTest {label}: leakageImpedance is smaller than the \
-                             resistance its loss gives; the pair reactance is 0"
-                        ),
-                    );
-                }
                 pairs.insert(key, pct.x);
                 // A loss of 0 states nothing: some producers leave it 0 on
                 // every pair but one.
                 if loss != 0.0 {
-                    losses.push((key, pct.r, test.clone()));
+                    let r = short_circuit_test_pct(
+                        0.0,
+                        loss,
+                        energised.v_ref,
+                        base,
+                        s_1,
+                        LEAKAGE_READING,
+                    )
+                    .map_or(0.0, |p| p.r);
+                    losses.push((key, r, test.clone()));
                 }
             }
         }

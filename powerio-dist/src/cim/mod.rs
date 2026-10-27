@@ -157,23 +157,40 @@ fn wrap_angle(angle: f64) -> f64 {
     a
 }
 
-/// How `ShortCircuitTest.leakageImpedance` is read. CIM defines it as the
-/// magnitude of the leakage impedance, and CIMHub's exporter (`GetDSS`)
-/// reads it that way, taking the reactance as `sqrt(|Z|² − R²)` with `R`
-/// from the test's load loss. The GridAPPS-D feeders state the reactance
-/// itself: IEEE 13's `ct5` tests are exactly the deck's 2.04%, 2.04% and
-/// 1.36%, and its regulators' 0.01% is the deck's `XHL` with an equal
-/// `%LoadLoss`, which a magnitude reading would leave with almost no
-/// reactance. The reading is one switch the reader and the writer share.
+/// The standard CIM leakage magnitude. The alternative is test-only evidence
+/// of why producer-specific X values cannot be used as standard magnitudes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LeakageReading {
-    #[cfg_attr(not(test), allow(dead_code))]
     Magnitude,
+    #[cfg(test)]
     Reactance,
 }
 
-/// The [`LeakageReading`] the reader and the writer use.
-const LEAKAGE_READING: LeakageReading = LeakageReading::Reactance;
+const LEAKAGE_READING: LeakageReading = LeakageReading::Magnitude;
+
+/// The phase clock represented by the existing OpenDSS winding convention:
+/// equal three-phase connections are clock 0; mixed D/Y connections use the
+/// default lagging clock 1. A reversed single-phase neutral pair is clock 6.
+/// Other vector groups need an explicit orientation mapping and are refused.
+fn tank_phase_clock(
+    primary: &crate::DistWinding,
+    winding: &crate::DistWinding,
+    three_phase: bool,
+) -> f64 {
+    if three_phase {
+        if primary.conn == winding.conn {
+            0.0
+        } else {
+            1.0
+        }
+    } else if (primary.terminal_map.first().is_some_and(|t| t == "4"))
+        != (winding.terminal_map.first().is_some_and(|t| t == "4"))
+    {
+        6.0
+    } else {
+        0.0
+    }
+}
 
 /// One `ShortCircuitTest` as percentages on winding 1's power base.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -182,9 +199,6 @@ struct ShortCircuitPct {
     x: f64,
     /// The pair resistance from the load loss.
     r: f64,
-    /// The stated magnitude was smaller than its resistive part, so the
-    /// reactance is 0.
-    short: bool,
 }
 
 /// A short circuit test's leakage impedance (ohm, referred to the energised
@@ -205,22 +219,15 @@ fn short_circuit_test_pct(
     }
     let z = 100.0 * leakage / base;
     let r = 100.0 * 1000.0 * loss_kw / base_power;
-    let (x, short) = match reading {
-        LeakageReading::Magnitude => {
-            let square = z * z - r * r;
-            if square < 0.0 {
-                (0.0, true)
-            } else {
-                (square.sqrt(), false)
-            }
-        }
-        LeakageReading::Reactance => (z, false),
+    let x = match reading {
+        LeakageReading::Magnitude => (z * z - r * r).max(0.0).sqrt(),
+        #[cfg(test)]
+        LeakageReading::Reactance => z,
     };
     let scale = s_1 / base_power;
     Some(ShortCircuitPct {
         x: x * scale,
         r: r * scale,
-        short,
     })
 }
 
@@ -319,7 +326,6 @@ mod tests {
         let short =
             short_circuit_test_pct(1.0, 0.09, 2400.0, 5000.0, 5000.0, LeakageReading::Magnitude)
                 .unwrap();
-        assert!(short.short);
         assert!(close(short.x, 0.0));
         assert!(
             short_circuit_test_pct(1.0, 0.0, 0.0, 5000.0, 5000.0, LeakageReading::Magnitude)

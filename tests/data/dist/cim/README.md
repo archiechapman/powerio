@@ -27,16 +27,18 @@
   in `powerio-dist/tests/cim.rs` (`tank_feeder_maps_exactly`). Each part
   mirrors an OpenDSS micro fixture in `../micro`, and
   `tank_and_dss_fixtures_agree` checks that both read to the same
-  transformer. Catalog values use the GridAPPS-D conventions: `leakageImpedance`
-  is the pair reactance in ohm on the energised end,
-  `x% = 100 · leakageImpedance / (ratedU² / basePower)`, and the pair
-  resistance is `r% = 100 · 1000 · loss / basePower` with `loss` in kW. Each
-  test's loss equals the sum of its two end resistances.
+  transformer. Catalog values use the standard CIM magnitude convention:
+  `|Z| = hypot(X, R)` in ohm on the energised end, with pair resistance
+  `r% = 100 · 1000 · loss / basePower` and `loss` in kW. Each test's loss
+  equals the sum of its two end resistances. This synthetic fixture is not
+  an example of the producer-specific X-in-magnitude dialect. Native OpenDSS
+  admittance and loaded-phasor comparisons also run in
+  `evals/validation/validate_cim_tanks.py`.
 
   | part | fixture value | expected in `MulticonductorNetwork` |
   |---|---|---|
-  | center tap `ct_tank` (mirrors `xfmr_center_tap.dss`) | 25 kVA, 7200/120/120 V, ends `A`, `s1`, `s2`; end `r` 12.4416, 0.006912, 0.006912 Ω (0.6%, 1.2%, 1.2% on 2073.6 and 0.576 Ω); tests 1–2 and 1–3 at 42.30144 Ω and 0.45 kW, 2–3 on end 2 at 0.0078336 Ω and 0.6 kW | terminal maps `1,4`, `1,4`, `4,2`; `r_pct` 0.6, 1.2, 1.2; `xsc_pct` 2.04, 2.04, 1.36 |
-  | open wye / open delta bank `od` (mirrors `xfmr_open_wye_open_delta.dss`) | two 2000 kVA tanks, 7200 V ends `A`, `B` to 4160 V ends `AB`, `BC`; r 0.5% each; test 1.4904 Ω (5.75% on 25.92 Ω), 20 kW; one `Asset` lists both tanks | `od_t1` maps `1,4` and delta `1,2`; `od_t2` maps `2,4` and delta `2,3`; `xsc_pct` 5.75 |
+  | center tap `ct_tank` (mirrors `xfmr_center_tap.dss`) | 25 kVA, 7200/120/120 V, ends `A`, `s1`, `s2`; end `r` 12.4416, 0.006912, 0.006912 Ω (0.6%, 1.2%, 1.2% on 2073.6 and 0.576 Ω); tests state magnitudes for X12=X13=42.30144 Ω and R12=R13=37.3248 Ω (0.45 kW); X23=0.0078336 Ω and R23=0.013824 Ω (0.6 kW), referred to end 2 | terminal maps `1,4`, `1,4`, `4,2`; `r_pct` 0.6, 1.2, 1.2; `xsc_pct` 2.04, 2.04, 1.36 |
+  | open wye / open delta bank `od` (mirrors `xfmr_open_wye_open_delta.dss`) | two 2000 kVA tanks, 7200 V ends `A`, `B` to 4160 V ends `AB`, `BC`; r 0.5% each; test magnitude hypot(1.4904, 0.2592) Ω (X=5.75%, R=1% on 25.92 Ω), 20 kW; one `Asset` lists both tanks | `od_t1` maps `1,4` and delta `1,2`; `od_t2` maps `2,4` and delta `2,3`; `xsc_pct` 5.75 |
   | single phase `sp_tank` (mirrors `xfmr_single_phase.dss`) | 25 kVA, 7200/240 V; r 0.6% each; test 0.3 kW; `NoLoadTest` 0.05 kW, `excitingCurrent` 0.538516% | `xsc_pct` 2.04; `%noloadloss = 100 · 50 / 25000 = 0.2`, `%imag = sqrt(0.538516² − 0.2²) = 0.5` |
   | delta/wye `dy_tank` (mirrors `xfmr_delta_wye.dss`) | 300 kVA, 12470 V `D` to 208 V `Y`, ends `ABC`, clock 0 and 1; r 0.5% each; test 3 kW | maps `1,2,3` (delta) and `1,2,3,4` (wye); `xsc_pct` 5.75; `cim_phase_angle_clock` `[0, 1]` |
   | regulator bank `reg` (IEEE 13 pattern) | three 1666 kVA, 2400 V tanks on phases A, B, C, one `Asset` each on a shared `reg_info`; r 0.005% each, x 0.01%; `RatioTapChanger` on end 2 at steps 10, 8, 11 of 0.625% | taps 1.0625, 1.05, 1.06875 on winding 2; `xsc_pct` 0.01 |

@@ -25,7 +25,7 @@ use crate::model::{
 
 use super::read::SWITCH_CLASSES;
 use super::{
-    LEAKAGE_READING, LeakageReading, no_load_test_pct, sequence_to_phase, short_circuit_test_pct,
+    LEAKAGE_READING, no_load_test_pct, sequence_to_phase, short_circuit_test_pct, tank_phase_clock,
     wrap_angle, z_base,
 };
 
@@ -1297,6 +1297,7 @@ impl TankCatalogs {
     /// File a tank under a catalog entry: its imported `cim_tank_info` when
     /// that entry states the same data, else the first entry with
     /// bit-identical data, else a new one.
+    #[allow(clippy::float_cmp)] // phase clocks are discrete
     fn add(&mut self, doc: &mut Doc, xf: &DistTransformer, codes: &[&'static str], tank: String) {
         let clocks = xf
             .extras
@@ -1316,12 +1317,19 @@ impl TankCatalogs {
                     (true, _) => "Y",
                     (false, _) => "I",
                 },
-                clock: clocks
-                    .and_then(|c| c.get(i))
-                    .and_then(serde_json::Value::as_f64)
-                    .unwrap_or(0.0),
+                clock: tank_phase_clock(&xf.windings[0], w, three_phase),
             })
             .collect();
+        if clocks.is_some_and(|old| {
+            old.iter()
+                .zip(&windings)
+                .any(|(v, w)| v.as_f64().is_some_and(|c| c != w.clock))
+        }) {
+            doc.warn(&C::EMIT_CIM_DIST_FIELD_DROPPED, format!(
+                "transformer {}: retained phase-angle clocks disagree with the current winding layout; writing the represented clocks",
+                xf.name
+            ));
+        }
         let pairs = xf.windings.len() * (xf.windings.len() - 1) / 2;
         let xsc_pct: Vec<f64> = (0..pairs)
             .map(|p| xf.xsc_pct.get(p).copied().unwrap_or(0.0))
@@ -1524,10 +1532,7 @@ fn test_leakage(x: f64, loss: f64, rated_u: f64, s_1: f64) -> f64 {
     };
     let r =
         short_circuit_test_pct(0.0, loss, rated_u, s_1, s_1, LEAKAGE_READING).map_or(0.0, |p| p.r);
-    let z = match LEAKAGE_READING {
-        LeakageReading::Magnitude => x.hypot(r),
-        LeakageReading::Reactance => x,
-    };
+    let z = x.hypot(r);
     exact_preimage(x, z / 100.0 * base, read)
 }
 

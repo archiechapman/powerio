@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Distribution CIM tank imports refuse unsupported phase clocks and inactive
+  or disconnected tank/parent/end states. Fresh tank output writes standard
+  impedance magnitudes and clocks derived from the current winding layout;
+  producer-specific X-in-magnitude inputs require prior normalization (#680).
+
 - Distribution CIM opens switches with disconnected terminals and refuses
   inactive/disconnected non-switch equipment and unsupported delta compensators,
   instead of constructing an energized or phase-to-ground equivalent (#687).
@@ -271,7 +276,7 @@
   `TransformerTank` becomes one transformer, with ratings, resistances, and
   short circuit reactances from its `TransformerTankInfo` catalog entry
   (`TransformerEndInfo`, `ShortCircuitTest`, whose `leakageImpedance` is read
-  as the pair reactance the GridAPPS-D feeders state), taps from tap
+  as the standard magnitude after resolving winding resistance), taps from tap
   changers on its ends, and `NoLoadTest` data in the `%noloadloss` and `%imag` extras the
   dss, PMD, and BMOPF writers read. A `TransformerCoreAdmittance` on the
   `PowerTransformerEnd` form gives the same extras. The writer writes tanks

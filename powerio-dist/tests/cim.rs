@@ -1401,9 +1401,13 @@ fn center_tap_catalog(r: [Option<f64>; 3], losses: [f64; 3]) -> String {
             r##"  <cim:TransformerEndInfo rdf:ID="_info_e{n}"><cim:TransformerEndInfo.TransformerTankInfo rdf:resource="#_info"/><cim:TransformerEndInfo.endNumber>{n}</cim:TransformerEndInfo.endNumber><cim:TransformerEndInfo.connectionKind rdf:resource="http://iec.ch/TC57/CIM100#WindingConnection.I"/><cim:TransformerEndInfo.ratedU>{u}</cim:TransformerEndInfo.ratedU><cim:TransformerEndInfo.ratedS>5000</cim:TransformerEndInfo.ratedS>{resistance}</cim:TransformerEndInfo>"##
         );
     }
-    for ((i, j, z), loss) in [(1, 2, 23.5008), (1, 3, 23.5008), (2, 3, 0.039_168)]
-        .into_iter()
-        .zip(losses)
+    for ((i, j, z), loss) in [
+        (1, 2, 23.5008_f64.hypot(20.736)),
+        (1, 3, 23.5008_f64.hypot(20.736)),
+        (2, 3, 0.039_168_f64.hypot(0.069_12)),
+    ]
+    .into_iter()
+    .zip(losses)
     {
         let _ = writeln!(
             out,
@@ -1444,8 +1448,8 @@ fn zero_test_losses_defer_to_end_resistance() {
         "{:#?}",
         net.warnings
     );
-    // Read as reactances, every pair keeps the source value, the 1 to 2 pair
-    // included (a magnitude reading would give sqrt(2.04² − 1.8²) = 0.96).
+    // Standard magnitudes include the resolved end resistances, even on
+    // pairs whose loss is zero/unstated.
     assert!(close(ct.xsc_pct[0], 2.04));
     assert!(close(ct.xsc_pct[1], 2.04));
     assert!(close(ct.xsc_pct[2], 1.36));
