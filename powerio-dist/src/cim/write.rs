@@ -1307,8 +1307,7 @@ impl TankCatalogs {
         let windings: Vec<CatalogWinding> = xf
             .windings
             .iter()
-            .enumerate()
-            .map(|(i, w)| CatalogWinding {
+            .map(|w| CatalogWinding {
                 v_ref: w.v_ref,
                 s_rating: w.s_rating,
                 r_pct: w.r_pct,
