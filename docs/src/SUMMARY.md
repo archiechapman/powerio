@@ -3,6 +3,7 @@
 [Overview](README.md)
 
 - [Getting started](getting-started.md)
+- [Browser converter](converter.md)
 - [Core concepts](concepts.md)
 - [Transmission networks](transmission.md)
 - [Distribution networks](distribution.md)
@@ -25,7 +26,8 @@
   - [PowerIO IR](pio-json-schema.md)
   - [PowerIO IR reference](ir-reference.md)
   - [BMOPF field mapping](bmopf-field-mapping.md)
-  - [Crate graph and architecture map](crate-graph.md)
+  - [Integrated transmission/distribution modeling](tnd.md)
+- [Crate graph and architecture map](crate-graph.md)
   - [LLVM and MLIR lessons](compiler-ir.md)
   - [DC OPF bundle](dcopf-bundle.md)
   - [Corpus harness](corpus-harness.md)

@@ -29,6 +29,9 @@ declares, the value is a network, an operating point, a calculation instance,
 a solution, a time series, a scenario set, a geographic layer, or a PSS/E
 contingency analysis file.
 
+[Convert files in the browser](https://powerio.dev/convert/), including mixed
+transmission and distribution batches. Files stay on the computer.
+
 ## Install
 
 ```sh
@@ -175,7 +178,10 @@ depend on just the layer they use.
 `powerio-tx` and `powerio-dist` share `powerio-core` and nothing else, so a
 distribution consumer pulls in no transmission code. `powerio-prob` is matrix
 free. The `powerio` facade re-exports the component crates, with
-`powerio-matrix` behind its `matrix` feature.
+`powerio-matrix` behind its `matrix` feature. Native SINCAL support is the
+`sincal` feature, on by default; it brings in SQLite, so a
+`wasm32-unknown-unknown` build with it needs a C compiler with a WebAssembly
+backend, and `default-features = false` leaves it out.
 
 ## Documentation
 
