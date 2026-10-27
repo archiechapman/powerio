@@ -179,5 +179,10 @@
       "PROFILE.PROPERTY_OUTSIDE PowerTransformerEnd.x": 6,
       "PROFILE.PROPERTY_OUTSIDE Terminal.phases": 48
     }
+  },
+  "fixture_skips": {
+    "tests/data/dist/bmopf/draft_bmopf_schema.json": "JSON Schema document, not a BMOPF network.",
+    "tests/data/dist/micro/lindist3flow-solution.pio.json": "Stored calculation solution, not a standalone distribution network.",
+    "tests/data/dist/micro/lindist3flow_oracle.json": "Native oracle results, not a standalone distribution network."
   }
 }

@@ -1,8 +1,10 @@
 # Distribution CIM validation
 
-Opt-in validation of the `cim-dist` reader and writer against independent CIM
+Validation of the `cim-dist` reader and writer against independent CIM
 tooling, run on PowerIO's own fixtures and on public distribution feeders.
-Nothing here runs in `cargo test` or the default CI gate.
+The CIM schema workflow runs the committed fixtures and false-pass regressions
+in CI. The external corpus remains optional and is reported separately.
+These checks do not run in `cargo test` and do not establish electrical equivalence.
 
 This directory holds leg D, schema conformance. The census, CIM-Graph
 structural comparison, OpenDSS electrical comparison and benchmark legs join
@@ -37,6 +39,22 @@ It checks:
   bytes, so a CIM source is written canonically rather than echoed.
 - The CIM sources themselves (`tests/data/dist/cim/*.xml` and the corpus
   feeders), as a control. Their findings are upstream quirks, recorded once.
+
+Expected fixture paths come from the baseline as well as file discovery: a
+deleted fixture/directory or failed serialization cannot remove a case from
+the run. Non-network JSON documents are explicitly listed with reasons in
+`fixture_skips`; no parse failure is silently treated as a non-case. Refusals
+must match the recorded diagnostic. New cases need an explicit baseline even
+if they have zero findings. Unsupported nested RDF/XML property values produce
+`VOCAB.NESTED_VALUE_UNSUPPORTED`; this checker does not recursively validate
+inline objects.
+
+For the reproducible CI scope, pass `--fixtures-only`. Run the regressions with
+`.venv-cim/bin/python -m unittest discover -s evals/validation/cim_dist -v`.
+Use `--require-corpus` for an external qualification run that must include all
+six feeders. The normal optional-corpus run reports how many are present;
+missing feeders have not been validated. A baseline update refuses to erase
+missing expected fixture cases.
 
 Every case's findings, counted per code and qualified name, are compared with
 `schema_expected.json`; a new finding or one that disappears fails the run.

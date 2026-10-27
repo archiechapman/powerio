@@ -4,6 +4,10 @@ Vocabulary errors against `cim17v40` and profile warnings against `rc4_2021` (CI
 
 | Case | Status | Vocabulary errors | Profile warnings |
 |---|---|---|---|
+| `tests/data/dist/bmopf/example_enwl_n1_f2.json output` | ok; not written: `PARSE.CLI.ERRORS_REPORTED` | | |
+| `tests/data/dist/bmopf/example_ieee13.json output` | ok | 0 | 22 |
+| `tests/data/dist/cim/micro_feeder.xml source` | ok | 6 | 13 |
+| `tests/data/dist/cim/micro_feeder.xml output` | ok | 0 | 11 |
 | `tests/data/dist/micro/defaults_degenerate.dss output` | ok | 0 | 9 |
 | `tests/data/dist/micro/fourwire_linecode.dss output` | ok | 0 | 6 |
 | `tests/data/dist/micro/ibr_pv_control.dss output` | ok | 0 | 6 |
@@ -21,19 +25,5 @@ Vocabulary errors against `cim17v40` and profile warnings against `rc4_2021` (CI
 | `tests/data/dist/micro/xfmr_wye_delta.dss output` | ok | 0 | 6 |
 | `tests/data/dist/pmd/fourwire_linecode.json output` | ok | 0 | 6 |
 | `tests/data/dist/pmd/ieee13.json output` | ok | 0 | 54 |
-| `tests/data/dist/bmopf/example_enwl_n1_f2.json output` | ok; not written: `PARSE.CLI.ERRORS_REPORTED` | | |
-| `tests/data/dist/bmopf/example_ieee13.json output` | ok | 0 | 22 |
-| `tests/data/dist/cim/micro_feeder.xml source` | ok | 6 | 13 |
-| `tests/data/dist/cim/micro_feeder.xml output` | ok | 0 | 11 |
-| `corpus/IEEE13.xml source` | ok | 31 | 26 |
-| `corpus/IEEE13.xml output` | ok | 0 | 61 |
-| `corpus/IEEE13_Assets.xml source` | ok | 21 | 37 |
-| `corpus/IEEE13_Assets.xml output` | ok; not written: `BUILD.DIST.ELECTRICAL_INCOMPLETE` | | |
-| `corpus/IEEE37.xml source` | ok | 41 | 20 |
-| `corpus/IEEE37.xml output` | ok | 0 | 111 |
-| `corpus/IEEE123.xml source` | ok | 137 | 34 |
-| `corpus/IEEE123.xml output` | ok | 0 | 356 |
-| `corpus/IEEE8500.xml source` | ok | 4897 | 1227 |
-| `corpus/IEEE8500.xml output` | ok | 0 | 8590 |
-| `corpus/final9500nodebalanced.xml source` | ok | 5715 | 1452 |
-| `corpus/final9500nodebalanced.xml output` | ok; not written: `BUILD.DIST.ELECTRICAL_INCOMPLETE` | | |
+
+External corpus: not requested (fixture-only run).

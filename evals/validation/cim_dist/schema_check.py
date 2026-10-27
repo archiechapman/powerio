@@ -69,6 +69,7 @@ EXPECTED_LITERAL = "VOCAB.EXPECTED_LITERAL"
 ENUM_VALUE = "VOCAB.ENUM_VALUE"
 LITERAL_INVALID = "VOCAB.LITERAL_INVALID"
 REFERENCE_TYPE = "VOCAB.REFERENCE_TYPE"
+NESTED_VALUE = "VOCAB.NESTED_VALUE_UNSUPPORTED"
 PROFILE_CLASS = "PROFILE.CLASS_OUTSIDE"
 PROFILE_PROPERTY = "PROFILE.PROPERTY_OUTSIDE"
 
@@ -261,6 +262,9 @@ def check_vocabulary(objects: list[Obj], vocab: Profile, out: Findings) -> None:
                 out.add(PROPERTY_UNKNOWN, name, o.id)
                 continue
             if nested:
+                # This bounded checker supports flat RDF/XML only. An inline
+                # object is not validated elsewhere by read_objects.
+                out.add(NESTED_VALUE, name, o.id)
                 continue
             target = declared.target
             if declared.association:
@@ -312,39 +316,46 @@ def check_document(path: Path, vocab: Profile, profile: Profile) -> Findings:
 
 
 def fresh_cim(powerio: str, source: Path, work: Path) -> tuple[Path | None, str]:
-    """PowerIO's canonical cim-dist output for `source`, or the reason it
-    has none: `unparsed` when the fixture is not a standalone case, or the
-    diagnostic code the CLI refused the conversion with."""
+    """Fresh output, or a refusal/error that must match the case baseline."""
     ir = work / f"{source.name}.pio.json"
     out = work / f"{source.name}.cim.xml"
     # serialize exits nonzero when the reader reports errors (for example a
     # segment on wire geometry) but still writes the document; the convert
     # step then decides.
-    subprocess.run(
+    serialized = subprocess.run(
         [powerio, "serialize", str(source), "-o", str(ir)],
         capture_output=True,
         text=True,
     )
     if not ir.exists():
-        return None, "unparsed"
+        return None, f"SERIALIZE.{refusal(serialized)}"
     done = subprocess.run(
         [powerio, "convert", str(ir), "--to", "cim-dist", "-o", str(out)],
         capture_output=True,
         text=True,
     )
     if done.returncode != 0:
-        codes = re.findall(r"\b([A-Z]+(?:\.[A-Z_]+){2,})\b", done.stderr)
-        return None, codes[-1] if codes else f"exit {done.returncode}"
+        return None, refusal(done)
+    if not out.is_file():
+        return None, "CONVERT.OUTPUT_MISSING"
     return out, ""
 
 
-def fixtures() -> list[Path]:
-    paths = []
+def refusal(done: subprocess.CompletedProcess) -> str:
+    codes = re.findall(r"\b([A-Z]+(?:\.[A-Z_]+){2,})\b", done.stderr)
+    return codes[-1] if codes else f"EXIT_{done.returncode}"
+
+
+def fixtures(expected: dict, skips: dict) -> list[Path]:
+    # Include the baseline's paths even when discovery cannot see a deleted
+    # fixture or directory. New standalone cases must acquire a baseline too.
+    paths = {Path(case.rsplit(" ", 1)[0]) for case in expected if not case.startswith("corpus/")}
+    paths.update(Path(path) for path in skips)
     for directory in FIXTURE_DIRS:
-        for path in sorted((FIXTURE_ROOT / directory).iterdir()):
+        for path in (FIXTURE_ROOT / directory).glob("*"):
             if path.suffix in (".dss", ".json", ".xml"):
-                paths.append(path)
-    return paths
+                paths.add(path)
+    return sorted(paths)
 
 
 def append_result(case: str, mark: str) -> None:
@@ -388,6 +399,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--powerio", default="target/release/powerio")
     parser.add_argument("--corpus", type=Path, default=Path("tests/data/large/cim_dist"))
+    scope = parser.add_mutually_exclusive_group()
+    scope.add_argument("--fixtures-only", action="store_true", help="do not inspect the optional external corpus")
+    scope.add_argument("--require-corpus", action="store_true", help="fail unless every external feeder is present")
     parser.add_argument("--update-expected", action="store_true")
     parser.add_argument("--report", type=Path)
     parser.add_argument("--verbose", action="store_true", help="print every finding")
@@ -402,31 +416,42 @@ def main() -> int:
     profile = Profile(PROFILE)
     expected_doc = json.loads(EXPECTED.read_text(encoding="utf-8")) if EXPECTED.exists() else {}
     expected = expected_doc.get("cases", {})
+    skips = expected_doc.get("fixture_skips", {})
 
     # (case id, document or None, reason when None)
     cases: list[tuple[str, Path | None, str]] = []
     failures = 0
     rows: list[tuple[str, str, Counter[str]]] = []
     observed: dict[str, dict[str, int]] = {}
+    corpus_present = 0
 
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
-        for path in fixtures():
+        for path in fixtures(expected, skips):
+            if not path.is_file():
+                print(f"FAIL missing fixture: {path}")
+                failures += 1
+                continue
+            if path.as_posix() in skips:
+                print(f"skip non-case {path}: {skips[path.as_posix()]}")
+                continue
             if path.suffix == ".xml":
                 cases.append((f"{path.as_posix()} source", path, ""))
             sub = work / path.parent.name
             sub.mkdir(exist_ok=True)
             out, why = fresh_cim(args.powerio, path, sub)
-            if why == "unparsed":
-                continue
             cases.append((f"{path.as_posix()} output", out, why))
-        for name in CORPUS:
+        for name in ([] if args.fixtures_only else CORPUS):
             path = args.corpus / name
             case = f"corpus/{name}"
             if not path.exists():
                 rows.append((f"{case} source", "skip (not fetched)", Counter()))
                 append_result(case, "skip")
+                if args.require_corpus:
+                    print(f"FAIL missing required corpus feeder: {path}")
+                    failures += 1
                 continue
+            corpus_present += 1
             cases.append((f"{case} source", path, ""))
             sub = work / "corpus"
             sub.mkdir(exist_ok=True)
@@ -444,6 +469,8 @@ def main() -> int:
                 got, examples = findings.counts, findings.examples
             observed[case] = dict(sorted(got.items()))
             diff = compare(case, got, expected.get(case, {}))
+            if case not in expected:
+                diff.insert(0, "  case has no baseline")
             status = "ok" if not diff else "FAIL"
             if diff and not args.update_expected:
                 failures += 1
@@ -458,17 +485,30 @@ def main() -> int:
             rows.append((case, "ok" if not diff or args.update_expected else "FAIL", got))
             append_result(case, rows[-1][1])
 
-    if args.update_expected:
+    # A missing baseline case must never disappear successfully, even when
+    # its expected findings are empty. External cases are checked only for
+    # feeders explicitly included in this run.
+    required = {case for case in expected if not case.startswith("corpus/")}
+    for case in sorted(required - observed.keys()):
+        print(f"FAIL expected case was not checked: {case}")
+        failures += 1
+
+    if args.update_expected and not failures:
         # Keep the expectations for corpus cases this run could not see.
         for case, counts in expected.items():
             observed.setdefault(case, counts)
         expected_doc["cases"] = dict(sorted(observed.items()))
         EXPECTED.write_text(json.dumps(expected_doc, indent=2) + "\n", encoding="utf-8")
         print(f"wrote {EXPECTED}")
+    coverage = (
+        "External corpus: not requested (fixture-only run)."
+        if args.fixtures_only else f"External corpus: {corpus_present}/{len(CORPUS)} feeders present; absent feeders were not validated."
+    )
     if args.report:
-        args.report.write_text(render_report(rows), encoding="utf-8")
+        args.report.write_text(render_report(rows) + "\n" + coverage + "\n", encoding="utf-8")
     checked = sum(1 for _, doc, _ in cases if doc is not None)
     print(f"{checked} documents checked, {failures} cases differ from {EXPECTED.name}")
+    print(coverage)
     return 1 if failures else 0
 
 
